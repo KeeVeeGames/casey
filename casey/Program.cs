@@ -12,7 +12,11 @@ namespace casey
     {
         static void Main(string[] args)
         {
-            using FileStream zipToOpen = new FileStream(@"C:\test\games.keevee.ArrayList.yymps", FileMode.Open);
+            string filename = @"C:\test\test.yymps";
+            string filenameCopy = Path.GetDirectoryName(filename) + @"\" + Path.GetFileNameWithoutExtension(filename) + "_camelCase" + Path.GetExtension(filename);
+            File.Copy(filename, filenameCopy, true);
+
+            using FileStream zipToOpen = new FileStream(filenameCopy, FileMode.Open);
             using ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Update);
 
             IEnumerable<ZipArchiveEntry> gmls = archive.Entries.Where(entry => entry.FullName.Contains(".gml"));
@@ -27,11 +31,11 @@ namespace casey
 
                 if (matches is null)
                 {
-                    matches = Regex.Matches(str, @"///\ @function\s+([^\(]+)");
+                    matches = Regex.Matches(str, @"///\ @member\ \{[^\s]+\}\s([^\s]+)|///\ @function\s+([^\(]+)");
                 }
                 else
                 {
-                    matches = matches.Concat(Regex.Matches(str, @"///\ @function\s+([^\(]+)"));
+                    matches = matches.Concat(Regex.Matches(str, @"///\ @member\ \{[^\s]+\}\s([^\s]+)|///\ @function\s+([^\(]+)"));
                 }
             }
 
@@ -39,17 +43,32 @@ namespace casey
             {
                 StringBuilder builder = new StringBuilder(strs[i]);
 
+                string value;
+
                 foreach (Match match in matches)
                 {
-                    string value = match.Groups[1].Value;
-                    builder.Replace(" " + value + "(", ToCamelCase(" " + value + "("));
-                    builder.Replace(" " + value + " = ", ToCamelCase(" " + value + " = "));
+                    value = match.Groups[1].Value;              // member
+
+                    if (value != "")
+                    {
+                        builder.Replace(value + " = ", ToCamelCase(value + " = "));                 // declaration
+                        builder.Replace("." + value, ToCamelCase("." + value));                     // use
+                    }
+
+                    value = match.Groups[2].Value;
+
+                    if (value != "")                            // function
+                    {
+                        builder.Replace(" " + value + "(", ToCamelCase(" " + value + "("));         // jsdoc
+                        builder.Replace(" " + value + " = ", ToCamelCase(" " + value + " = "));     // declaration
+                        builder.Replace("." + value + "(", ToCamelCase("." + value + "("));         // use
+                    }
                 }
 
                 using StreamWriter writer = new StreamWriter(gmls.ElementAt(i).Open());
                 writer.Write(builder);
 
-                Console.WriteLine(builder);
+                //Console.WriteLine(builder);
             }
         }
         private static string ToCamelCase(string s)
